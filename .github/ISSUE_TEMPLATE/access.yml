@@ -1,0 +1,11 @@
+name: Заявка на доступ к polden-rnd
+description: Обычно её создаёт ИИ-агент участника. Почту, телефон и пароли не пишите — страница открыта всем.
+title: "Доступ к polden-rnd: "
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Имя и фамилия
+      description: Как вас знают в команде. Доступ получит аккаунт GitHub, который подаёт заявку.
+    validations:
+      required: true

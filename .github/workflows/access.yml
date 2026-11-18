@@ -1,0 +1,42 @@
+name: Заявки на доступ
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Номер заявки
+        required: true
+      action:
+        description: Какое событие проверить
+        type: choice
+        options: [labeled, opened]
+        default: labeled
+      dry_run:
+        description: Режим проверки — только показать, что будет сделано
+        type: boolean
+        default: true
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: access-${{ github.event.issue.user.login || inputs.issue }}
+
+jobs:
+  handle:
+    if: github.event_name == 'workflow_dispatch' || github.event.action != 'labeled' || github.event.label.name == 'одобрено'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Текст заявки не подставляется в команды: скрипт читает событие из файла.
+      - run: python3 access.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INVITE_TOKEN: ${{ secrets.POLDEN_RND_INVITE_TOKEN }}
+          TARGET_REPO: aust917/polden-rnd
+          APPROVERS: aust917
+          LABEL: одобрено
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
