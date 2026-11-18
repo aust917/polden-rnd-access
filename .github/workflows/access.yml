@@ -22,9 +22,6 @@ permissions:
   issues: write
   contents: read
 
-concurrency:
-  group: access-${{ github.event.issue.user.login || inputs.issue }}
-
 jobs:
   handle:
     if: github.event_name == 'workflow_dispatch' || github.event.action != 'labeled' || github.event.label.name == 'одобрено'
