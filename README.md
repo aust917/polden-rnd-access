@@ -41,15 +41,39 @@ $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [En
 
 Перед установкой сверь найденный пакет и издателя (`winget show --id …`). Без WinGet — официальные установщики: [Git](https://git-scm.com/install/windows), [GitHub CLI](https://cli.github.com/), [Python](https://www.python.org/downloads/windows/), [Obsidian](https://obsidian.md/download), [Google Drive](https://support.google.com/a/users/answer/13022292). Node.js для базы не нужен. Если Windows показывает запрос разрешения, скажи человеку: «Появится окно Windows с вопросом, разрешить ли установку. Нажмите “Да”».
 
+<a id="github-account"></a>
+
 ### 2. GitHub: аккаунт и вход
 
-Выполни `gh auth status`. Если вход уже выполнен — переходи к шагу 3.
+Выполни `gh auth status`. Если вход уже выполнен, выбери аккаунт по инструкции ниже и переходи к шагу 3.
 
 Иначе спроси: «Есть ли у вас аккаунт на GitHub — сайте, где хранятся тексты нашей базы? Подойдёт любой, в том числе личный: рабочая почта для него не нужна. Ответьте “Есть” или “Нет”».
 
 - **Нет аккаунта.** Открой `Start-Process https://github.com/signup` и объясни: «Откроется регистрация GitHub. Введите любую свою почту — рабочая `@polden.gg` не обязательна (почту не увидят другие участники), придумайте пароль и имя пользователя латиницей — это ваш ник. Пройдите проверку “я не робот” и введите код из письма GitHub. Когда увидите главную страницу GitHub, напишите “Готово”».
 - **Вход.** Запусти `gh auth login --hostname github.com --git-protocol https --web`. Покажи человеку одноразовый код из вывода и скажи: «Откроется страница GitHub. Введите код `XXXX-XXXX`, нажмите Continue, затем Authorize github. Напишите “Вошёл”». Если браузер не открылся, дай адрес https://github.com/login/device .
-- После входа: `gh auth setup-git` — Git будет использовать этот вход.
+- Если в `gh` один аккаунт, выполни `gh auth setup-git` и переходи к шагу 3.
+
+Если в `gh` несколько аккаунтов, выбери ник из `gh auth status`. Используй аккаунт, который уже получил доступ или от имени которого подаёшь заявку. В той же сессии PowerShell задай ник и функцию ниже. В шагах 3–5 выполняй команды через `Invoke-PoldenGh` вместо `gh`, чтобы заявка, приглашение и проверка прав относились к одному аккаунту. Функция передаёт токен напрямую в `gh` и возвращает прежнее окружение после команды.
+
+```powershell
+$poldenLogin = '<ник выбранного аккаунта>'
+if ($poldenLogin -notmatch '^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$') {
+    throw 'Подставь ник аккаунта из gh auth status.'
+}
+function Invoke-PoldenGh {
+    $previousToken = $env:GH_TOKEN
+    try {
+        $selectedToken = gh auth token --hostname github.com --user $poldenLogin
+        if ($LASTEXITCODE -ne 0 -or -not $selectedToken) { throw 'В выбранный аккаунт GitHub ещё не вошли.' }
+        $env:GH_TOKEN = $selectedToken
+        gh @args
+    } finally {
+        $env:GH_TOKEN = $previousToken
+    }
+}
+```
+
+Токен не выводи. Активный аккаунт `gh` для других репозиториев останется прежним.
 
 ### 3. Ник, имя и доступ
 
@@ -99,13 +123,35 @@ if ($id) { gh api -X PATCH "user/repository_invitations/$id"; gh api repos/aust9
 
 Ответ `true` — доступ получен. Если одобрения за время сессии не было, скажи: «Заявка ждёт Артура. Когда придёт письмо GitHub о приглашении в polden-rnd, напишите мне “доступ дали” — продолжу с этого места». Заявку при этом не повторяй.
 
+<a id="github-clone"></a>
+
 ### 6. Получи базу и продолжай по её инструкции
 
 Спроси, где хранить базу: покажи свободное место на дисках и предложи несистемный диск, например `D:\polden-rnd`. Папка не должна лежать внутри OneDrive, Google Drive или другого Git-репозитория.
 
+При одном аккаунте выполни:
+
 ```powershell
 git clone --branch main https://github.com/aust917/polden-rnd.git '<папка>'
 ```
+
+При нескольких аккаунтах обычный `git clone` может вернуть 404, даже если доступ уже выдан. Стандартный помощник `gh` использует активный аккаунт. Подставь полный путь к папке вместо `<папка>` и используй ник из шага 2. Параметры `git clone --config` задают помощник до первого сетевого обращения и сохраняют его только в новой копии базы.
+
+```powershell
+$key = 'credential.https://github.com.helper'
+$helper = '!f() { test x$1 = xget || return 0; token=$(gh auth token --hostname github.com --user <login>) || return; printf ''username=<login>\npassword=%s\n'' $token; }; f'
+$helper = $helper.Replace('<login>', $poldenLogin)
+git clone --config "$key=" --config "$key=$helper" --branch main https://github.com/aust917/polden-rnd.git '<папка>'
+```
+
+В существующей копии выполни те же первые три строки для `$key` и `$helper`, затем задай помощник локально:
+
+```powershell
+git -C '<папка>' config --local --replace-all --% credential.https://github.com.helper ""
+git -C '<папка>' config --local --add $key $helper
+```
+
+Пустое значение сбрасывает список внешних помощников для GitHub в этой копии. Проверь `git -C '<папка>' fetch origin`. При настройке регулярной выгрузки сама база перенесёт эту настройку в копию-черновик.
 
 Дальше открой в базе `Исследования/Общее_пространство/Подключение_участника_Google_Drive.md` и продолжай по нему с раздела 4. Все остальные правила — в `AGENTS.md` базы.
 
